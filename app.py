@@ -1,4 +1,5 @@
 import os
+import sys
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 import numpy as np
@@ -9,6 +10,8 @@ import nltk
 from nltk.corpus import stopwords
 from nltk.tokenize import word_tokenize
 import openpyxl
+
+sys.stdout.reconfigure(encoding='utf-8')
 
 app = Flask(__name__)
 CORS(app)  # Enable CORS for all domains
