@@ -9,6 +9,7 @@ import nltk
 from nltk.corpus import stopwords
 from nltk.tokenize import word_tokenize
 import openpyxl
+import pandas
 
 app = Flask(__name__)
 CORS(app)  # Enable CORS for all domains

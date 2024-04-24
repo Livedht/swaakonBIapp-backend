@@ -1,70 +1,49 @@
-# Getting Started with Create React App
+Course Analysis Tool
+The Course Analysis Tool is a Python application designed to analyze course descriptions and literature lists to identify overlaps and similarities between courses. It utilizes natural language processing techniques and machine learning models to provide insights into course content and literature requirements.
 
-This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).
+Features
+- Overlap Analysis: Compare new course descriptions with existing ones to identify potential overlaps in content.
+- Literature Matching: Find matches between literature lists of different courses to identify common resources.
+- Data Visualization: Visualize overlap scores and literature matches for easy interpretation.
 
-## Available Scripts
+Installation
+1. Clone the Repository: Clone the repository to your local machine using the following command:
+bash
 
-In the project directory, you can run:
+git clone <repository_url>
 
-### `npm start`
+2. Navigate to the Project Directory: Move into the project directory:
 
-Runs the app in the development mode.\
-Open [http://localhost:3000](http://localhost:3000) to view it in your browser.
 
-The page will reload when you make changes.\
-You may also see any lint errors in the console.
+cd course-analysis-tool
 
-### `npm test`
+3. Install Dependencies: Ensure you have Python installed. Then, install the required dependencies listed in the requirements.txt file using pip:
 
-Launches the test runner in the interactive watch mode.\
-See the section about [running tests](https://facebook.github.io/create-react-app/docs/running-tests) for more information.
+pip install -r requirements.txt
 
-### `npm run build`
+4. Set Up Environment Variables (if necessary): If your application requires any environment variables to run, ensure they are set up accordingly. You may need to create a .env file in the project directory to store sensitive information.
 
-Builds the app for production to the `build` folder.\
-It correctly bundles React in production mode and optimizes the build for the best performance.
+Usage
+Run the Application: Start the application by executing the main script:
 
-The build is minified and the filenames include the hashes.\
-Your app is ready to be deployed!
+python script.py
 
-See the section about [deployment](https://facebook.github.io/create-react-app/docs/deployment) for more information.
+Access the Application: Once the application is running, you can access it via a web browser at http://localhost:5000.
+Input Course Details: Enter the relevant course details and literature lists into the provided fields for analysis.
 
-### `npm run eject`
 
-**Note: this is a one-way operation. Once you `eject`, you can't go back!**
+Dependencies:
+The project relies on the following Python packages, which are listed in the requirements.txt file:
 
-If you aren't satisfied with the build tool and configuration choices, you can `eject` at any time. This command will remove the single build dependency from your project.
+Flask
+Flask-CORS
+NumPy
+Sentence Transformers
+scikit-learn
+RAKE-NLTK
+NLTK
+openpyxl
 
-Instead, it will copy all the configuration files and the transitive dependencies (webpack, Babel, ESLint, etc) right into your project so you have full control over them. All of the commands except `eject` will still work, but they will point to the copied scripts so you can tweak them. At this point you're on your own.
 
-You don't have to ever use `eject`. The curated feature set is suitable for small and middle deployments, and you shouldn't feel obligated to use this feature. However we understand that this tool wouldn't be useful if you couldn't customize it when you are ready for it.
-
-## Learn More
-
-You can learn more in the [Create React App documentation](https://facebook.github.io/create-react-app/docs/getting-started).
-
-To learn React, check out the [React documentation](https://reactjs.org/).
-
-### Code Splitting
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/code-splitting](https://facebook.github.io/create-react-app/docs/code-splitting)
-
-### Analyzing the Bundle Size
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size](https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size)
-
-### Making a Progressive Web App
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app](https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app)
-
-### Advanced Configuration
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/advanced-configuration](https://facebook.github.io/create-react-app/docs/advanced-configuration)
-
-### Deployment
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/deployment](https://facebook.github.io/create-react-app/docs/deployment)
-
-### `npm run build` fails to minify
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify](https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify)
+Contributing
+Contributions are welcome! If you have any suggestions, bug reports, or feature requests, please open an issue or submit a pull request.
