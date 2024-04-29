@@ -10,6 +10,7 @@ import nltk
 from nltk.corpus import stopwords
 from nltk.tokenize import word_tokenize
 import openpyxl
+import re
 import pandas
 
 sys.stdout.reconfigure(encoding='utf-8')
@@ -23,8 +24,8 @@ nltk.download('stopwords')
 
 # Her kan det legges til flere stoppord. Har tatt ut liste over de 250 mest brukte ordene, og lagt til de jeg tenker ikke hører hjemme i analysen.
 additional_stopwords = [
-    'students', 'course', 'studentene', 'able', 'kunnskap', 'knowledge', 'understand', 'ulike', 'understanding', 'different', 'kurset', 'apply', 'skills', 'candidates', 'candidate', 'end', 'understands', 'forstår', 'able.', 'address',
-' including', 'processes', 'kunne', 'practice', 'øve', 'ORG', 'EXC', 'ELE', 'BMP', 'GRA', 'BIK', 'BST', 'SMC', 'SLM', 'MAN', 'DRE', 'FORK', 'ENT', 'BØK', 'LUS', 'JUR', 'FAK', 'MET', 'EDI', 'EBA', 'FIN', 'KLS', 'STR', 'BTH', 'MRK', 'EMS', 'BIN', 'DIG', 'MAD', 'NSA', 'module', 'modul'  
+   'students', 'course', 'studentene', 'able', 'kunnskap', 'knowledge', 'understand', 'ulike', 'understanding', 'different', 'kurset', 'apply', 'skills', 'candidates', 'candidate', 'end', 'understands', 'forstår', 'able.', 'address',
+    ' including', 'processes', 'kunne', 'practice', 'øve', 'org', 'exc', 'ele', 'bmp', 'gra', 'bik', 'bst', 'smc', 'slm', 'man', 'dre', 'fork', 'ent', 'bøk', 'lus', 'jur', 'fak', 'met', 'edi', 'eba', 'fin', 'kls', 'str', 'bth', 'mrk', 'ems', 'bin', 'dig', 'mad', 'nsa', 'module', 'modul'   
 ]
 
 EXCEL_FILE_PATH = os.path.join('data', 'Kombifil.xlsx')
@@ -40,7 +41,7 @@ def remove_stopwords(text, languages=['english', 'norwegian']):
     stop_words.update(additional_stopwords)
 
     word_tokens = word_tokenize(text)
-    filtered_text = ' '.join(w for w in word_tokens if w.lower() not in stop_words)
+    filtered_text = ' '.join(w for w in word_tokens if w.lower() not in stop_words and not re.search(r'\b\d+\b', w))
     return filtered_text
 
  # Reads course data from an Excel file, organizing it so the application can understand and use it.
