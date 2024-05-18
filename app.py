@@ -11,13 +11,17 @@ from nltk.tokenize import word_tokenize
 import openpyxl
 import re
 import json
-from tqdm import tqdm  # Import tqdm for the progress bar
+from tqdm import tqdm
+import openai
 
+# Ensure UTF-8 encoding
 sys.stdout.reconfigure(encoding='utf-8')
 
 app = Flask(__name__)
-CORS(app)  # Enable CORS for all domains
+CORS(app)
 app.secret_key = os.environ.get('SECRET_KEY', 'your_fallback_secret_key')
+
+openai.api_key = os.environ.get('OPENAI_API_KEY', 'sk-proj-PG9DppZOfijgZR9Bq4LtT3BlbkFJfSe5FhdkGrvX4TGDO8Fa')
 
 nltk.download('punkt')
 nltk.download('stopwords')
@@ -141,6 +145,40 @@ def update_courses(existing_courses, new_course_data):
         # If new_course_data does not exist, append it to existing_courses
         existing_courses.append(new_course_data)
 
+def generate_overlap_explanation(course_1, course_2):
+    prompt = (
+        f"The following two course descriptions have a high overlap score. "
+        f"As a professor, please provide a short explanation on why these courses might be overlapping, and if the two courses could be considered mutually exclusive or not, so that a student can have them both in their study plan, or not. "
+        f"keeping your explanation within 250 words:\n\n"
+        f"Course 1 Description: {course_1}\n\n"
+        f"Course 2 Description: {course_2}\n\n"
+        f"Explanation:"
+    )
+    
+    response = openai.ChatCompletion.create(
+        model="gpt-4",
+        messages=[
+            {"role": "system", "content": "You are a helpful assistant with expertise in higher education."},
+            {"role": "user", "content": prompt}
+        ],
+        max_tokens=300,
+        stop=["\n\n", "Explanation:"]
+    )
+    
+    explanation = response['choices'][0]['message']['content'].strip()
+    explanation = ensure_complete_sentence(explanation)
+    return explanation
+
+def ensure_complete_sentence(text):
+    # Ensure the text ends with a complete sentence
+    if text and text[-1] not in ['.', '!', '?']:
+        last_period = text.rfind('.')
+        if last_period == -1:
+            # No period found, return the original text
+            return text
+        return text[:last_period + 1]
+    return text
+
 def normalize_literature_entry(entry):
     return set(entry.replace("Book: ", "").replace("'", "").replace('"', '').strip().lower().split('\n'))
 
@@ -198,7 +236,8 @@ def check_course_overlap(new_course_data, existing_courses, overlap_threshold=0.
                 'Existing Course Code': existing_courses[idx].get('Kurskode', 'N/A'),
                 'Existing Course Name': existing_courses[idx]['Kursnavn'],
                 'Overlap Score (%)': 100,
-                'Keywords': 'Exact match'
+                'Keywords': 'Exact match',
+                'Explanation': generate_overlap_explanation(new_course_combined_info, existing_courses[idx]['combined_info'])
             })
             continue
 
@@ -209,13 +248,19 @@ def check_course_overlap(new_course_data, existing_courses, overlap_threshold=0.
             phrases_with_scores = r.get_ranked_phrases_with_scores()
             keywords = ', '.join(phrase for score, phrase in phrases_with_scores if score > 1)
             
+            explanation = None
+            if sim_score_percentage >= 60:
+                explanation = generate_overlap_explanation(new_course_combined_info, existing_courses[idx]['combined_info'])
+
             overlapping_courses.append({
                 'Existing Course Code': existing_courses[idx].get('Kurskode', 'N/A'),
                 'Existing Course Name': existing_courses[idx]['Kursnavn'],
                 'Overlap Score (%)': sim_score_percentage,
-                'Keywords': keywords
+                'Keywords': keywords,
+                'Explanation': explanation
             })
     return overlapping_courses
+
 
 # Initialize SentenceTransformer model globally
 model = SentenceTransformer('distiluse-base-multilingual-cased-v2')
