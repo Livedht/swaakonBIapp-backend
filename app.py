@@ -156,7 +156,7 @@ def generate_overlap_explanation(course_1, course_2):
     )
     
     response = openai.ChatCompletion.create(
-        model="gpt-4",
+        model="gpt-4o",
         messages=[
             {"role": "system", "content": "You are a helpful assistant with expertise in higher education."},
             {"role": "user", "content": prompt}
