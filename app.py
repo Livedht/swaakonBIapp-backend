@@ -2,7 +2,6 @@ import os
 import sys
 from flask import Flask, request, jsonify
 from flask_cors import CORS
-import numpy as np
 from sentence_transformers import SentenceTransformer
 from sklearn.metrics.pairwise import cosine_similarity
 from rake_nltk import Rake
@@ -11,28 +10,75 @@ from nltk.corpus import stopwords
 from nltk.tokenize import word_tokenize
 import openpyxl
 import re
-import pandas
+import json
+from tqdm import tqdm
+import openai
 
+# Ensure UTF-8 encoding
 sys.stdout.reconfigure(encoding='utf-8')
 
 app = Flask(__name__)
-CORS(app)  # Enable CORS for all domains
+CORS(app)
 app.secret_key = os.environ.get('SECRET_KEY', 'your_fallback_secret_key')
+
+openai.api_key = os.environ.get('OPENAI_API_KEY', 'sk-proj-PG9DppZOfijgZR9Bq4LtT3BlbkFJfSe5FhdkGrvX4TGDO8Fa')
 
 nltk.download('punkt')
 nltk.download('stopwords')
 
-# Her kan det legges til flere stoppord. Har tatt ut liste over de 250 mest brukte ordene, og lagt til de jeg tenker ikke hører hjemme i analysen.
 additional_stopwords = [
-   'students', 'course', 'studentene', 'able', 'kunnskap', 'knowledge', 'understand', 'ulike', 'understanding', 'different', 'kurset', 'apply', 'skills', 'candidates', 'candidate', 'end', 'understands', 'forstår', 'able.', 'address',
-    ' including', 'processes', 'kunne', 'practice', 'øve', 'org', 'exc', 'ele', 'bmp', 'gra', 'bik', 'bst', 'smc', 'slm', 'man', 'dre', 'fork', 'ent', 'bøk', 'lus', 'jur', 'fak', 'met', 'edi', 'eba', 'fin', 'kls', 'str', 'bth', 'mrk', 'ems', 'bin', 'dig', 'mad', 'nsa', 'module', 'modul'   
+    # English stopwords
+    'students', 'student', 'course', 'courses', 'module', 'modules', 'lecturer', 'lecturers',
+    'teacher', 'teachers', 'lecture', 'lectures', 'academic', 'study', 'studies', 'degree',
+    'degrees', 'program', 'programs', 'syllabus', 'syllabi', 'curriculum', 'curricula',
+    'knowledge', 'understand', 'understanding', 'skill', 'skills', 'competence',
+    'competencies', 'learning', 'outcome', 'outcomes', 'objective', 'objectives', 'aim',
+    'aims', 'goal', 'goals', 'learn', 'apply', 'develop', 'gain', 'achieve', 'explore',
+    'examine', 'analyze', 'evaluate', 'undergo', 'include', 'includes', 'including',
+    'provide', 'provides', 'provided', 'offer', 'offering', 'offered', 'cover', 'covers',
+    'covered', 'require', 'requires', 'required', 'assess', 'assesses', 'assessed',
+    'assessment', 'broad', 'basic', 'relevant', 'important', 'simple', 'advanced',
+    'completed', 'acquire', 'reflect', 'reflecting', 'ensure', 'describe', 'explain',
+    'discuss', 'create', 'master', 'calculate', 'familiarize', 'concepts', 'methods',
+    'theories', 'problems', 'results', 'arguments', 'conclusions', 'answers', 'reader',
+    'assumptions', 'models', 'connections', 'subjects', 'topics', 'tools', 'data',
+    'information', 'technology', 'systems', 'techniques', 'solutions', 'challenges',
+    'applications', 'strategies', 'completing', 'end', 'overview', 'various',
+    
+    # Norwegian stopwords
+    'studentene', 'kunnskap', 'forstå', 'ulike', 'kurset', 'ferdigheter', 'kandidater',
+    'kandidat', 'inkludert', 'adressere', 'prosesser', 'kunne', 'øve', 'organisasjon', 'exc',
+    'ele', 'bmp', 'gra', 'bik', 'bst', 'smc', 'slm', 'man', 'dre', 'fork', 'ent', 'bøk',
+    'lus', 'jur', 'fak', 'met', 'edi', 'eba', 'fin', 'kls', 'str', 'bth', 'mrk', 'ems',
+    'bin', 'dig', 'mad', 'nsa', 'modul', 'moduler', 'kurs', 'kursene', 'studie', 'studier',
+    'grader', 'program', 'programmer', 'pensum', 'pensumet', 'pensumliste', 'læreplan',
+    'læreplaner', 'kompetanse', 'kunnskaper', 'mål', 'målsetting', 'målene', 'utvikle',
+    'oppnå', 'utforske', 'undersøke', 'analysere', 'evaluere', 'gjennomgå', 'inkluderer',
+    'inkludering', 'gi', 'tilby', 'tilbyr', 'dekke', 'dekker', 'dekking', 'krever', 'krevet',
+    'vurdere', 'vurderer', 'vurdert', 'bred', 'grunnleggende', 'relevant', 'viktig', 'enkel',
+    'avansert', 'fullført', 'skaffe', 'reflektere', 'beskrive', 'forklare', 'diskutere',
+    'skape', 'mestere', 'beregne', 'kjent', 'begreper', 'metoder', 'teorier', 'problemer',
+    'resultater', 'argumenter', 'konklusjoner', 'svar', 'leser', 'antagelser', 'modeller',
+    'forbindelser', 'emner', 'temaer', 'verktøy', 'data', 'informasjon', 'teknologi',
+    'systemer', 'teknikker', 'løsninger', 'utfordringer', 'applikasjoner', 'strategier',
+    'fullføring', 'slutt', 'oversikt', 'ulike',
+    
+    # Existing stopwords from your list
+    'students', 'student', 'course', 'studentene', 'able', 'kunnskap', 'knowledge', 'understand',
+    'ulike', 'understanding', 'different', 'kurset', 'apply', 'skills', 'candidates', 'candidate',
+    'end', 'understands', 'forstår', 'able.', 'address', 'including', 'processes', 'kunne', 'practice',
+    'øve', 'org', 'exc', 'ele', 'bmp', 'gra', 'bik', 'bst', 'smc', 'slm', 'man', 'dre', 'fork', 'ent',
+    'bøk', 'lus', 'jur', 'fak', 'met', 'edi', 'eba', 'fin', 'kls', 'str', 'bth', 'mrk', 'ems', 'bin',
+    'dig', 'mad', 'nsa', 'module', 'modul'
 ]
 
-EXCEL_FILE_PATH = os.path.join('data', 'Kombifil.xlsx')
+EXCEL_FILE_PATH = os.path.join('data', 'Kombifil - med ekstern.xlsx')
+JSON_FILE_PATH = os.path.join('data', 'courses.json')
+CACHE_FILE_PATH = os.path.join('data', 'cache.json')
 
+# Global variable for caching
+cache = {}
 
-
- # This function cleans up the text by removing common but unimportant words (like "and", "the", etc.) in English and Norwegian.
 def remove_stopwords(text, languages=['english', 'norwegian']):
     stop_words = set()
     for lang in languages:
@@ -44,7 +90,26 @@ def remove_stopwords(text, languages=['english', 'norwegian']):
     filtered_text = ' '.join(w for w in word_tokens if w.lower() not in stop_words and not re.search(r'\b\d+\b', w))
     return filtered_text
 
- # Reads course data from an Excel file, organizing it so the application can understand and use it.
+fields_to_include = ['Kurskode', 'Kursnavn', 'Learning outcome - Knowledge', 'Learning outcome - Skills', 'Learning outcome - General Competence', 'Course content']
+
+def remove_stopwords_and_extract_keywords(course_data):
+    course_code = course_data['Kurskode']
+    if course_code in cache:
+        return cache[course_code]['filtered_text'], cache[course_code]['keywords']
+
+    combined_info = ' '.join(str(course_data.get(field, '')) for field in fields_to_include).strip()
+    filtered_text = remove_stopwords(combined_info)
+    r = Rake()
+    r.extract_keywords_from_text(filtered_text)
+    keywords = ', '.join(r.get_ranked_phrases())
+
+    # Update cache
+    cache[course_code] = {'filtered_text': filtered_text, 'keywords': keywords}
+    with open(CACHE_FILE_PATH, 'w') as f:
+        json.dump(cache, f)
+
+    return filtered_text, keywords
+
 def load_courses_from_excel(file_path):
     workbook = openpyxl.load_workbook(file_path)
     sheet = workbook.active
@@ -52,29 +117,82 @@ def load_courses_from_excel(file_path):
     headers = [cell.value for cell in next(sheet.iter_rows(min_row=1, max_row=1))]
     for row in sheet.iter_rows(min_row=2):
         course_data = {headers[i]: cell.value for i, cell in enumerate(row) if headers[i]}
+        filtered_text, keywords = remove_stopwords_and_extract_keywords(course_data)
+        course_data['FilteredText'] = filtered_text
+        course_data['Keywords'] = keywords
         courses.append(course_data)
     return courses
 
-# Cleans and prepares book titles or literature entries for comparison.
+def store_courses_to_json(courses, json_file):
+    with open(json_file, 'w') as f:
+        json.dump(courses, f)
+
+def load_courses_from_json(json_file):
+    with open(json_file, 'r') as f:
+        courses = json.load(f)
+    return courses
+
+def update_courses(existing_courses, new_course_data):
+    if new_course_data['Kurskode'] == 'N/A':
+        return  # Skip updating for new courses entered through the form
+
+    for course in existing_courses:
+        if course['Kurskode'] == new_course_data['Kurskode']:  # Assuming 'Kurskode' is a unique identifier
+            # Update the existing entry
+            course.update(new_course_data)
+            break
+    else:
+        # If new_course_data does not exist, append it to existing_courses
+        existing_courses.append(new_course_data)
+
+def generate_overlap_explanation(course_1, course_2):
+    prompt = (
+        f"The following two course descriptions have a high overlap score. "
+        f"As a professor, please provide a short explanation on why these courses might be overlapping, and if the two courses could be considered mutually exclusive or not, so that a student can have them both in their study plan, or not. "
+        f"keeping your explanation within 250 words:\n\n"
+        f"Course 1 Description: {course_1}\n\n"
+        f"Course 2 Description: {course_2}\n\n"
+        f"Explanation:"
+    )
+    
+    response = openai.ChatCompletion.create(
+        model="gpt-4o",
+        messages=[
+            {"role": "system", "content": "You are a helpful assistant with expertise in higher education."},
+            {"role": "user", "content": prompt}
+        ],
+        max_tokens=300,
+        stop=["\n\n", "Explanation:"]
+    )
+    
+    explanation = response['choices'][0]['message']['content'].strip()
+    explanation = ensure_complete_sentence(explanation)
+    return explanation
+
+def ensure_complete_sentence(text):
+    # Ensure the text ends with a complete sentence
+    if text and text[-1] not in ['.', '!', '?']:
+        last_period = text.rfind('.')
+        if last_period == -1:
+            # No period found, return the original text
+            return text
+        return text[:last_period + 1]
+    return text
+
 def normalize_literature_entry(entry):
-    # Remove "Book: " prefix and any extra whitespace or quotes
     return set(entry.replace("Book: ", "").replace("'", "").replace('"', '').strip().lower().split('\n'))
 
- # Looks for any books or literature in the user's input that also appear in the course descriptions.
 def find_literature_matches(user_input, existing_courses):
     user_titles = normalize_literature_entry(user_input)
     print(f"User titles after normalization: {user_titles}")
 
     matches = []
     for course in existing_courses:
-        # Check if 'Pensum' key exists in the course dictionary
         if 'Pensum' in course and course['Pensum']:
-            # Assuming 'Pensum' data is a string of titles separated by "|"
             course_titles = set(
                 map(lambda x: x.strip().lower(), 
                     course['Pensum'].replace("Book: ", "").replace("'", "").split('|'))
             )
-            print(f"Course: {course['Kursnavn']}, Normalized literature: {course_titles}")
 
             common_titles = user_titles.intersection(course_titles)
             print(f"Common titles found: {common_titles}")
@@ -85,7 +203,6 @@ def find_literature_matches(user_input, existing_courses):
                     'Literature Matches': ' | '.join(f"Book: '{title}'" for title in common_titles)
                 })
         else:
-            # Handle the case where 'Pensum'(litteraturliste is not connected to the course) is not provided or is empty
             print(f"No 'Pensum' data for course: {course.get('Kursnavn', 'Unknown')}")
             
             matches.append({
@@ -97,33 +214,18 @@ def find_literature_matches(user_input, existing_courses):
     print(f"Matches found: {matches}")
     return matches
 
- # Compares a new course description to existing ones to find similarities, helping to identify if the new course is too similar to existing ones.
-def check_course_overlap(new_course_data, existing_courses, overlap_threshold=0.25):  # Overlap threshold can be adjusted. This is currently set to 25%. All results below 25 will not be included in the results
-    for course in existing_courses:
-        combined_info_fields = [
-            str(course.get('Kurskode', '')), 
-            str(course.get('Kursnavn', '')),
-            str(course.get('Learning outcome - Knowledge', '')),
-            str(course.get('Learning outcome - Skills', '')),
-            str(course.get('Learning outcome - General Competence', '')),
-            str(course.get('Course content', ''))
-        ]
-        combined_info = ' '.join(combined_info_fields).strip()
-        course['combined_info'] = remove_stopwords(combined_info)
-
+def check_course_overlap(new_course_data, existing_courses, overlap_threshold=0.25):
     new_course_combined_info_fields = [
         str(new_course_data.get('Kurskode', '')),
         str(new_course_data.get('Kursnavn', '')),
         str(new_course_data.get('Learning outcome - Knowledge', '')),
-        str(new_course_data.get('Course content', ''))  # Combined input for learning outcomes and course content
+        str(new_course_data.get('Course content', ''))
     ]
     new_course_combined_info = ' '.join(new_course_combined_info_fields).strip()
     new_course_combined_info = remove_stopwords(new_course_combined_info)
 
-    model = SentenceTransformer('distiluse-base-multilingual-cased-v2')
     new_course_embedding = model.encode([new_course_combined_info], show_progress_bar=False)
-    existing_courses_combined_info = [course['combined_info'] for course in existing_courses]
-    existing_courses_embeddings = model.encode(existing_courses_combined_info, show_progress_bar=True)
+    existing_courses_embeddings = [course['embedding'] for course in existing_courses]
     
     cosine_sim = cosine_similarity(new_course_embedding, existing_courses_embeddings)
     overlapping_courses = []
@@ -134,30 +236,63 @@ def check_course_overlap(new_course_data, existing_courses, overlap_threshold=0.
                 'Existing Course Code': existing_courses[idx].get('Kurskode', 'N/A'),
                 'Existing Course Name': existing_courses[idx]['Kursnavn'],
                 'Overlap Score (%)': 100,
-                'Keywords': 'Exact match'
+                'Keywords': 'Exact match',
+                'Explanation': generate_overlap_explanation(new_course_combined_info, existing_courses[idx]['combined_info'])
             })
             continue
 
         if sim_score > overlap_threshold:
             sim_score_percentage = round(sim_score * 100, 2)
-            # Extract keywords using RAKE
             r = Rake()
             r.extract_keywords_from_text(existing_courses[idx]['combined_info'])
             phrases_with_scores = r.get_ranked_phrases_with_scores()
             keywords = ', '.join(phrase for score, phrase in phrases_with_scores if score > 1)
             
+            explanation = None
+            if sim_score_percentage >= 60:
+                explanation = generate_overlap_explanation(new_course_combined_info, existing_courses[idx]['combined_info'])
+
             overlapping_courses.append({
                 'Existing Course Code': existing_courses[idx].get('Kurskode', 'N/A'),
                 'Existing Course Name': existing_courses[idx]['Kursnavn'],
                 'Overlap Score (%)': sim_score_percentage,
-                'Keywords': keywords  # Including keywords in the response
+                'Keywords': keywords,
+                'Explanation': explanation
             })
     return overlapping_courses
 
-# Load the existing courses from the Excel sheet when the application starts
-existing_courses = load_courses_from_excel(EXCEL_FILE_PATH)
 
-# Defines how the application should respond when someone visits the main page or sends information to it.
+# Initialize SentenceTransformer model globally
+model = SentenceTransformer('distiluse-base-multilingual-cased-v2')
+
+def add_embeddings_to_courses(courses):
+    for course in tqdm(courses, desc="Generating embeddings"):
+        combined_info_fields = [
+            str(course.get('Kurskode', '')), 
+            str(course.get('Kursnavn', '')),
+            str(course.get('Learning outcome - Knowledge', '')),
+            str(course.get('Learning outcome - Skills', '')),
+            str(course.get('Learning outcome - General Competence', '')),
+            str(course.get('Course content', ''))
+        ]
+        combined_info = ' '.join(combined_info_fields).strip()
+        course['combined_info'] = remove_stopwords(combined_info)
+        course['embedding'] = model.encode([course['combined_info']], show_progress_bar=False).tolist()[0]
+    return courses
+
+# Load the existing courses from the JSON file when the application starts
+if os.path.exists(JSON_FILE_PATH):
+    existing_courses = load_courses_from_json(JSON_FILE_PATH)
+else:
+    existing_courses = load_courses_from_excel(EXCEL_FILE_PATH)
+    existing_courses = add_embeddings_to_courses(existing_courses)
+    store_courses_to_json(existing_courses, JSON_FILE_PATH)
+
+# Load the cache from JSON file
+if os.path.exists(CACHE_FILE_PATH):
+    with open(CACHE_FILE_PATH, 'r') as f:
+        cache = json.load(f)
+
 @app.route('/', methods=['GET', 'POST']) 
 def home():
     if request.method == 'POST':
@@ -173,18 +308,16 @@ def home():
             'Learning outcome - Knowledge': learning_outcomes_and_content,  # Both learning outcomes and course content
             'Course content': learning_outcomes_and_content  # For consistency, assuming course content same as learning outcomes
         }
+        update_courses(existing_courses, new_course_details)
         overlapping_courses = check_course_overlap(new_course_details, existing_courses)
 
         literature_matches = []
         if literature:
-            # Normalize the literature input from the form
             literature_input = "\n".join([line.strip() for line in literature.splitlines() if line.strip()])
-            # Find matches based on the normalized literature input
             literature_matches = find_literature_matches(literature_input, existing_courses)
 
-        # Extracting additional columns from existing courses
         additional_columns = [
-            'Kurskode','Kurskode2','Academic Coordinator','Credits','Undv.språk',
+            'Kurskode','Kurskode2','Academic Coordinator', 'School','Credits','Undv.språk',
             'Gj.føring','LINK EN','LINK NB','Level of study','Portfolio','Associate Dean',
             'Ansvarlig institutt','Ansvarlig område',
         ]
@@ -199,59 +332,6 @@ def home():
 
     else:
         return jsonify({'message': 'Ready for overlap checking'})
-
- # An additional feature that allows for the comparison of all courses to each other to find overlaps.
-@app.route('/analyze_all_courses', methods=['GET'])
-def analyze_all_courses():
-    courses = existing_courses  # This assumes existing_courses already contains all necessary data
-
-    # Make sure combined_info is computed and added here to avoid KeyError
-    for course in courses:
-        combined_info_fields = [
-            str(course.get('Kurskode', '')), 
-            str(course.get('Kursnavn', '')),
-            str(course.get('Learning outcome - Knowledge', '')),
-            str(course.get('Learning outcome - Skills', '')),
-            str(course.get('Learning outcome - General Competence', '')),
-            str(course.get('Course content', ''))
-        ]
-        combined_info = ' '.join(combined_info_fields).strip()
-        course['combined_info'] = remove_stopwords(combined_info)
-
-    # Proceed with encoding and the rest of the function...
-    model = SentenceTransformer('distiluse-base-multilingual-cased-v2')
-    all_embeddings = model.encode([course['combined_info'] for course in courses], show_progress_bar=True)
-
-    results = []
-    for i, course_a in enumerate(courses):
-        for j, course_b in enumerate(courses):
-            if i >= j:  # Avoid duplicates and self-comparison
-                continue
-
-            sim_score = cosine_similarity([all_embeddings[i]], [all_embeddings[j]])[0][0]
-            sim_score_percentage = round(sim_score * 100, 2)
-            
-            if sim_score > 0.25:  # Assuming a threshold for a relevant comparison
-                # Safely handle potentially None 'Pensum' values
-                pensum_a = course_a.get('Pensum', '') or ''
-                pensum_b = course_b.get('Pensum', '') or ''
-
-                literature_a = set(pensum_a.split('|')) if pensum_a else set()
-                literature_b = set(pensum_b.split('|')) if pensum_b else set()
-
-                common_literature = literature_a.intersection(literature_b)
-                common_literature_formatted = ' | '.join(common_literature)
-
-                results.append({
-                    'Course Code 1': course_a.get('Kurskode', 'N/A'),
-                    'Course Name 1': course_a.get('Kursnavn', 'N/A'),
-                    'Overlap Score (%)': sim_score_percentage,
-                    'Course Code 2': course_b.get('Kurskode', 'N/A'),
-                    'Course Name 2': course_b.get('Kursnavn', 'N/A'),
-                    'Common Literature': common_literature_formatted
-                })
-
-    return jsonify(results)
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000, debug=True)
