@@ -1,0 +1,14 @@
+[config]
+SCM_DO_BUILD_DURING_DEPLOYMENT=true
+
+[skip_files]
+__pycache__/
+*.pyc
+.git/
+.vscode/
+.idea/
+.env
+*.log
+node_modules/
+tests/
+docs/
